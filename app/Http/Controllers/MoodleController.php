@@ -63,8 +63,10 @@ class MoodleController extends Controller
      * Realiza a consulta das categorias cadastradas no moodle com ou sem parâmetros
      * @param string $chave
      * @param string $valor
+     * @param bool $unico Informa se deve carregar apenas um registro ou todos
+     * @return bool|object|array 
      */
-    function consultaCategorias(string $chave = null, string $valor = null) {
+    function consultaCategorias(string $chave = null, string $valor = null, bool $unico = false) {
         $parametros['criteria'] = [];
         // Caso tenha sido passado parametro de consulta os insere no array criteria necessário para o metodo core_course_get_categories
         if($chave != null && $valor != null){
@@ -76,15 +78,9 @@ class MoodleController extends Controller
         // Caso o resultado não tenha sido o desejado retorna false
         if($resposta == NULL || isset($resposta->exception) || count($resposta) == 0){
             $resposta = false;
-        }// Caso tenha sido realizado uma filtragem, filtra o valor novamente pois a filtragem da api aceita valores que contanham os dados filtrados 
-        else if($chave != null && $valor != null){
-            $resposta_filtrada = [];
-            foreach ($resposta as $categoria) {
-                if($categoria->{$chave} == $valor){
-                    array_push($resposta_filtrada, $categoria);
-                }
-            }
-            $resposta = $resposta_filtrada;
+        }// Caso tenha sido realizado uma filtragem, realiza manualmente pois a api só filtra por ID 
+        else if($unico && count($resposta)){
+            $resposta = $resposta[0];
         }
         return $resposta;
     }
@@ -106,7 +102,7 @@ class MoodleController extends Controller
      * @param array $lista_categorias
      */
     function criaCategorias(array $lista_categorias) {
-        if(count($lista_categorias) > 0){
+        if(count($lista_categorias)){
             $parametros['categories'] = $lista_categorias;
             $resposta = $this->enviarRequisicaoMoodle('core_course_create_categories', $parametros);
             return $resposta;
@@ -119,14 +115,16 @@ class MoodleController extends Controller
      * Realiza a consulta dos coortes cadastrados no moodle com ou sem parâmetros
      * @param string $chave
      * @param string $valor
+     * @param bool $unico Informa se deve carregar apenas um registro ou todos
+     * @return bool|object|array 
      */
-    function consultaCoortes(string $chave = null, string $valor = null) {
+    function consultaCoortes(string $chave = null, string $valor = null, bool $unico = false) {
         $resposta = $this->enviarRequisicaoMoodle('core_cohort_get_cohorts');
 
         // Caso o resultado não tenha sido o desejado retorna false
         if($resposta == NULL || isset($resposta->exception) || count($resposta) == 0){
             $resposta = false;
-        }// Caso tenha sido realizado uma filtragem, realiza a filtragem pois a api não tem uma função simplificada para isso 
+        }// Caso tenha sido realizado uma filtragem, realiza manualmente pois a api só filtra por ID 
         else if($chave != null && $valor != null){
             $resposta_filtrada = [];
             foreach ($resposta as $coorte) {
@@ -134,7 +132,11 @@ class MoodleController extends Controller
                     array_push($resposta_filtrada, $coorte);
                 }
             }
-            $resposta = $resposta_filtrada;
+            if($unico && count($resposta_filtrada)){
+                $resposta = $resposta_filtrada[0];
+            }else{
+                $resposta = $resposta_filtrada;
+            }
         }
         return $resposta;
     }
@@ -144,7 +146,7 @@ class MoodleController extends Controller
      * @param array $lista_coortes
      */
     function criaCoortes(array $lista_coortes) {
-        if(count($lista_coortes) > 0){
+        if(count($lista_coortes)){
             $parametros['cohorts'] = $lista_coortes;
             $resposta = $this->enviarRequisicaoMoodle('core_cohort_create_cohorts', $parametros);
             return $resposta;
@@ -157,8 +159,10 @@ class MoodleController extends Controller
      * Realiza a consulta dos cursos cadastrados no moodle com ou sem parâmetros
      * @param string $chave
      * @param string $valor
+     * @param bool $unico Informa se deve carregar apenas um registro ou todos
+     * @return bool|object|array 
      */
-    function consultaCursos(string $chave = null, string $valor = null) {
+    function consultaCursos(string $chave = null, string $valor = null, bool $unico = false) {
         $parametros['field'] = "";
         $parametros['value'] = "";
         // Caso tenha sido passado parametro de consulta os insere no array criteria necessário para o metodo core_course_get_categories
@@ -169,8 +173,10 @@ class MoodleController extends Controller
         $resposta = $this->enviarRequisicaoMoodle('core_course_get_courses_by_field', $parametros);
 
         // Caso o resultado não tenha sido o desejado retorna false
-        if($resposta == NULL || isset($resposta->exception) || count($resposta->courses) == 0 || count($resposta->warnings) > 0){
+        if($resposta == NULL || isset($resposta->exception) || count($resposta->courses) == 0 || count($resposta->warnings)){
             $resposta = false;
+        }else if($unico){
+            $resposta = $resposta->courses[0];
         }else{
             $resposta = $resposta->courses;
         }
@@ -182,7 +188,7 @@ class MoodleController extends Controller
      * @param array $lista_cursos
      */
     function criaCursos(array $lista_cursos) {
-        if(count($lista_cursos) > 0){
+        if(count($lista_cursos)){
             $parametros['courses'] = $lista_cursos;
             $resposta = $this->enviarRequisicaoMoodle('core_course_create_courses', $parametros);
             return $resposta;
@@ -195,15 +201,17 @@ class MoodleController extends Controller
      * Realiza a consulta dos grupos cadastrados no moodle com ou sem parâmetros
      * @param string $chave
      * @param string $valor
+     * @param bool $unico Informa se deve carregar apenas um registro ou todos
+     * @return bool|object|array 
      */
-    function consultaGrupos(string $chave = null, string $valor = null) {
+    function consultaGrupos(string $chave = null, string $valor = null, bool $unico = false) {
         $parametros['groupids'] = [];
         $resposta = $this->enviarRequisicaoMoodle('core_group_get_groups', $parametros);
 
         // Caso o resultado não tenha sido o desejado retorna false
-        if($resposta == NULL || isset($resposta->exception) || count($resposta) == 0 || count($resposta->warnings) > 0){
+        if($resposta == NULL || isset($resposta->exception) || count($resposta) == 0 || count($resposta->warnings)){
             $resposta = false;
-        }// Caso tenha sido realizado uma filtragem, realiza a filtragem pois a api não tem uma função simplificada para isso 
+        }// Caso tenha sido realizado uma filtragem, realiza manualmente pois a api só filtra por ID 
         else if($chave != null && $valor != null){
             $resposta_filtrada = [];
             foreach ($resposta as $grupo) {
@@ -211,7 +219,11 @@ class MoodleController extends Controller
                     array_push($resposta_filtrada, $grupo);
                 }
             }
-            $resposta = $resposta_filtrada;
+            if($unico && count($resposta_filtrada)){
+                $resposta = $resposta_filtrada[0];
+            }else{
+                $resposta = $resposta_filtrada;
+            }
         }
         return $resposta;
     }
@@ -221,7 +233,7 @@ class MoodleController extends Controller
      * @param array $lista_grupos
      */
     function criaGrupos(array $lista_grupos) {
-        if(count($lista_grupos) > 0){
+        if(count($lista_grupos)){
             $parametros['groups'] = $lista_grupos;
             $resposta = $this->enviarRequisicaoMoodle('core_group_create_groups', $parametros);
             return $resposta;
@@ -232,10 +244,12 @@ class MoodleController extends Controller
 
     /**
      * Realiza a consulta dos usuarios cadastrados no moodle com ou sem parâmetros
-     * @param string $chave
-     * @param string $valor
+     * @param string $chave Informa qual o parâmetro será utilizado na filtragem
+     * @param string $valor Informa qual o valor do parâmetro a ser filtrado
+     * @param bool $unico Informa se deve carregar apenas um registro ou todos
+     * @return bool|object|array 
      */
-    function consultaUsuarios(string $chave = null, string $valor = null) {
+    function consultaUsuarios(string $chave = null, string $valor = null, bool $unico = false) {
         $parametros['criteria'] = [];
         // Caso tenha sido passado parametro de consulta os insere no array criteria necessário para o metodo core_course_get_categories
         if($chave != null && $valor != null){
@@ -247,10 +261,38 @@ class MoodleController extends Controller
         // Caso o resultado não tenha sido o desejado retorna false
         if($resposta == NULL || isset($resposta->exception) || count($resposta->users) == 0){
             $resposta = false;
+        }else if($unico){
+            $resposta = $resposta->users[0];
         }else{
             $resposta = $resposta->users;
         }
         return $resposta;
     }
 
+    /**
+     * Cadastra os usuários no moodle
+     * @param array $lista_usuarios
+     */
+    function criaUsuarios(array $lista_usuarios) {
+        if(count($lista_usuarios)){
+            $parametros['users'] = $lista_usuarios;
+            $resposta = $this->enviarRequisicaoMoodle('core_user_create_users', $parametros);
+            return $resposta;
+        }else{
+            return false;
+        }
+    }
+
+    /**
+     * Vincula um usuário a um curso conforme os ids e papel
+     */
+    function criaVinculosUsuarioCurso(array $lista_vinculos) {
+        if(count($lista_vinculos)){
+            $parametros['enrolments'] = $lista_vinculos;
+            $resposta = $this->enviarRequisicaoMoodle('enrol_manual_enrol_users', $parametros);
+            return $resposta;
+        }else{
+            return false;
+        }
+    }
 }
