@@ -1,17 +1,15 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use Illuminate\Support\Facades\Http;
 
 /**
- * Controlador responsável por consultar e manipular os dados presentes no SEI através de seu WebService
+ * Classe responsável por consultar e manipular os dados presentes no SEI através de seu WebService
  * Obs.: Devido ao tempo de resposta menor das funções V2, todas as funções originais equivalentes foram removidas
  */
-class SEIController extends Controller
-{
-    const URL_API_SEI = "https://fsensu.com/webservice/moodle";
-    const CABECALHO_API_SEI = [
+class SEIController extends Controller {
+    private const URL_API_SEI = "https://fsensu.com/webservice/moodle";
+    private const CABECALHO_API_SEI = [
         'Content-Type' =>  'application/json',
         'Authorization' => '9510905a5d214feef0d5368d88cdc4264c2dbae4e505ac00a4adf50393c50fd6'
       ];
@@ -33,7 +31,7 @@ class SEIController extends Controller
         return ($cursos != NULL)?$cursos:[];
     }
     
-    function vinculacoesAlunos_v2 ($horas = 0, $unidadeEnsino = 0, $curso = 0, $nivelEducacional = "TODOS", $ano = 0, $semestre = 0, $limit = 0, $pagina = 0) {
+    function listarVinculoAlunos_v2 ($horas = 0, $unidadeEnsino = 0, $curso = 0, $nivelEducacional = "TODOS", $ano = 0, $semestre = 0, $limit = 0, $pagina = 0) {
         $url = self::URL_API_SEI . '/V2/vinculacoes/alunos/' . strval($unidadeEnsino) . '/' . strval($curso) . '/' . strval($nivelEducacional) . '/' . strval($ano) . '/' . strval($semestre) . '/' . strval($horas) . '/' . strval($limit) . '/' . strval($pagina);
         $resposta = Http::withHeaders(self::CABECALHO_API_SEI)->get($url);
         $alunos = json_decode($resposta->body());
@@ -41,7 +39,7 @@ class SEIController extends Controller
         return ($alunos != NULL)?$alunos:[];
     }
 
-    function vinculacoesProfessores_v2 ($horas = 0, $unidadeEnsino = 0, $curso = 0, $nivelEducacional = 0, $ano = 0, $semestre = 0, $limit = 0, $pagina = 0) {
+    function listarVinculoProfessores_v2 ($horas = 0, $unidadeEnsino = 0, $curso = 0, $nivelEducacional = 0, $ano = 0, $semestre = 0, $limit = 0, $pagina = 0) {
         $url = self::URL_API_SEI . '/V2/vinculacoes/professores/' . strval($unidadeEnsino) . '/' . strval($curso) . '/' . strval($nivelEducacional) . '/' . strval($ano) . '/' . strval($semestre) . '/' . strval($horas) . '/' . strval($limit) . '/' . strval($pagina);
         $resposta = Http::withHeaders(self::CABECALHO_API_SEI)->get($url);
         $professores = json_decode($resposta->body());
@@ -49,7 +47,7 @@ class SEIController extends Controller
         return ($professores != NULL)?$professores:[];
     }
 
-    function vinculacoesCoordenadores_v2 ($horas = 0, $unidadeEnsino = 0, $curso = 0, $nivelEducacional = 0, $ano = 0, $semestre = 0, $limit = 0, $pagina = 0) {
+    function listarVinculoCoordenadores_v2 ($horas = 0, $unidadeEnsino = 0, $curso = 0, $nivelEducacional = 0, $ano = 0, $semestre = 0, $limit = 0, $pagina = 0) {
         $url = self::URL_API_SEI . '/V2/vinculacoes/coordenadores/' . strval($unidadeEnsino) . '/' . strval($curso) . '/' . strval($nivelEducacional) . '/' . strval($ano) . '/' . strval($semestre) . '/' . strval($horas) . '/' . strval($limit) . '/' . strval($pagina);
         $resposta = Http::withHeaders(self::CABECALHO_API_SEI)->get($url);
         $coordenadores = json_decode($resposta->body());
