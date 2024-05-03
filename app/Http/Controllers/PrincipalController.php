@@ -16,6 +16,7 @@ class PrincipalController extends Controller
     const SEMESTRE = 1;
 
     function principal(){
+        LogController::InicioExecucao();
         $seiController = new SEIController();
         $moodleController = new MoodleController();
         #region Consulta a lista de Cursos, Turmas e Modulos do SEI onde as Turmas correspondem ao ANO/SEMESTRE
@@ -38,17 +39,15 @@ class PrincipalController extends Controller
             $moodleController->criarCursos($lista_cursos);
             unset($lista_cursos); 
             #endregion
-
-            #region Cadastra grupos
-            $lista_grupos = $this->preparaListaGruposMoodle($lista_ctm_sei, $moodleController);
-            $moodleController->criarGrupos($lista_grupos);
-            unset($lista_grupos);
-                        
             #region Cadastra coortes
             $lista_coortes = $this->preparaListaCoortesMoodle($lista_ctm_sei, $moodleController);
             $moodleController->criarCoortes($lista_coortes);
             unset($lista_coortes);
             #endregion
+            #region Cadastra grupos
+            $lista_grupos = $this->preparaListaGruposMoodle($lista_ctm_sei, $moodleController);
+            $moodleController->criarGrupos($lista_grupos);
+            unset($lista_grupos);
             #endregion
         }
         #endregion
@@ -92,6 +91,7 @@ class PrincipalController extends Controller
             }
         }*/
         #endregion
+        LogController::FimExecucao();
     }
 
     function vincularAlunos() {
@@ -189,6 +189,24 @@ class PrincipalController extends Controller
             }
             #endregion
 
+            // Verifica se o Coorte a que esse usuário será vinculado já existe no Moodle
+            $coorte_moodle = $moodleController->consultaCoortes('idnumber', 'turma - ' . $vin_aluno_sei->turma_codigo, 1);
+            if(!$coorte_moodle){
+                /* Se o coorte não existe no moodle é possível que ele tenha sido manipulado ou excluído. Cria-se um novo. */
+                $lista_coortes = $this->preparaListaCoortesMoodle([$ctm_sei], $moodleController);
+                $moodleController->criarCoortes($lista_coortes);
+                $coorte_moodle = $moodleController->consultaCoortes('idnumber', 'turma - ' . $vin_aluno_sei->turma_codigo, 1);
+                unset($lista_coortes);
+            }
+            // Monta lista de vinculos do usuário ao coorte
+            if(!$moodleController->consultaVinculosUsuariosCoorte($coorte_moodle->id, $usuario_moodle->id)){
+                $vin_usuario_coorte_moodle = [];
+                $vin_usuario_coorte_moodle['cohorttype'] = (object)['type' => 'id', 'value' => $coorte_moodle->id];
+                $vin_usuario_coorte_moodle['usertype'] = (object)['type' => 'id', 'value' => $usuario_moodle->id];
+                array_push($lista_vin_usuario_coorte_moodle, $vin_usuario_coorte_moodle);
+                unset($vin_usuario_coorte_moodle);
+            }
+
             // Verifica se o Grupo a que esse aluno será vinculado já existe no Moodle
             $grupo_moodle = $moodleController->consultaGruposPorIdCurso($curso_moodle->id, 'idnumber', $vin_aluno_sei->turma_codigo . ' - ' . $vin_aluno_sei->modulo_codigo, 1);
             if(!$grupo_moodle){
@@ -207,24 +225,6 @@ class PrincipalController extends Controller
                 unset($vin_usuario_grupo_moodle);
             }
             #endregion
-            
-            // Verifica se o Coorte a que esse usuário será vinculado já existe no Moodle
-            $coorte_moodle = $moodleController->consultaCoortes('idnumber', 'turma - ' . $vin_aluno_sei->turma_codigo, 1);
-            if(!$coorte_moodle){
-                /* Se o coorte não existe no moodle é possível que ele tenha sido manipulado ou excluído. Cria-se um novo. */
-                $lista_coortes = $this->preparaListaCoortesMoodle([$ctm_sei], $moodleController);
-                $moodleController->criarCoortes($lista_coortes);
-                $coorte_moodle = $moodleController->consultaCoortes('idnumber', 'turma - ' . $vin_aluno_sei->turma_codigo, 1);
-                unset($lista_coortes);
-            }
-            // Monta lista de vinculos do usuário ao coorte
-            if(!$moodleController->consultaVinculosUsuariosCoorte($coorte_moodle->id, $usuario_moodle->id)){
-                $vin_usuario_coorte_moodle = [];
-                $vin_usuario_coorte_moodle['cohorttype'] = (object)['type' => 'id', 'value' => $coorte_moodle->id];
-                $vin_usuario_coorte_moodle['usertype'] = (object)['type' => 'id', 'value' => $usuario_moodle->id];
-                array_push($lista_vin_usuario_coorte_moodle, $vin_usuario_coorte_moodle);
-                unset($vin_usuario_coorte_moodle);
-            }
 
             unset($grupo_moodle);
             unset($curso_moodle);
@@ -352,6 +352,7 @@ class PrincipalController extends Controller
                 array_push($lista_grupos, $grupo);
             }
         }
+        $lista_grupos = array_unique($lista_grupos, SORT_REGULAR);
         unset($turma_sei);
         unset($curso_moodle);
         unset($grupo);

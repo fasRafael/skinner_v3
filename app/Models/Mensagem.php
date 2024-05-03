@@ -5,6 +5,8 @@ namespace App\Models;
 class Mensagem {
     const MENSAGENS = [
         0 => "Não existe uma mensagem com o código informado.",
+        1 => "Início da execução do WebService.",
+        2 => "Fim da execução do WebService.",
         // Faixa 200: mensagem de sucesso
         201 => "Categoria criada no moodle.",
         202 => "Curso criado no moodle.",

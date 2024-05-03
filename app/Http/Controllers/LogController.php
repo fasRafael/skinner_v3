@@ -29,6 +29,14 @@ class LogController extends Controller
         return $log;
     }
 
+    static function InicioExecucao(){
+        self::RegistrarLog(json_encode(self::CriarObjLog(1), JSON_UNESCAPED_UNICODE));
+    }
+
+    static function FimExecucao(){
+        self::RegistrarLog(json_encode(self::CriarObjLog(2), JSON_UNESCAPED_UNICODE));
+    }
+
     static function SucessoCriarCategoria(object $categoria){
         $log            = self::CriarObjLog(201);
         $log->idnumber  = $categoria->idnumber;
@@ -59,7 +67,7 @@ class LogController extends Controller
 
     static function SucessoCriarUsuario(object $usuario){
         $log            = self::CriarObjLog(205);
-        $log->idnumber        = $usuario->idnumber;
+        $log->idnumber  = $usuario->idnumber;
         $log->username  = $usuario->username;
         self::RegistrarLog(json_encode($log, JSON_UNESCAPED_UNICODE));
     }

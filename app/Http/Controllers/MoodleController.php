@@ -2,13 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Support\Facades\Http;
+
 class MoodleController extends Controller
 {
     #region Constantes de acesso ao moodle
     /*const URL_API_MOODLE = 'https://ava.faculdadesensu.edu.br/webservice/restjson/server.php';
     const TOKEN_API_MOODLE = "7535f43e6ea21e1ce02f6a0ed8dbd565";*/
-    const URL_API_MOODLE = 'http://10.1.1.6/moodle/webservice/restjson/server.php';
-    const TOKEN_API_MOODLE = "81fd3d3e002d205db936c1d0cf7db3a9";
+    const URL_API_MOODLE = 'http://10.1.1.6/moodle/webservice/rest/server.php';
+    const TOKEN_API_MOODLE = "6f5ad94d2d9f79791a520cf3bb6b2a78";
     const ID_NUMBER_CATEGORIA_RAIZ = "SKINNER_V3";
     #endregion
 
@@ -25,20 +27,16 @@ class MoodleController extends Controller
      */
     private function enviarRequisicaoMoodle(string $funcao, array $lista_parametros = []) {
         $parametros['wstoken'] = $this::TOKEN_API_MOODLE;
+        $parametros['moodlewsrestformat'] = 'json';
         $parametros['wsfunction'] = $funcao;
         foreach ($lista_parametros as $parametro_chave => $parametro_valor) {
             $parametros[$parametro_chave] = $parametro_valor;
         }
 
-        $ch = curl_init();
-        
-        curl_setopt($ch, CURLOPT_URL, self::URL_API_MOODLE);
-        curl_setopt($ch, CURLOPT_POST, 0);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($parametros));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/json'));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-
-        $resultado = json_decode(curl_exec($ch));
+        $response = Http::get($this::URL_API_MOODLE, $parametros);
+        $response_body = $response->getBody();
+        $resultado = $response_body->getContents();
+        $resultado = json_decode($response_body);
         return $resultado;
     }
     /**
@@ -74,7 +72,7 @@ class MoodleController extends Controller
         $categoria['idnumber'] = self::ID_NUMBER_CATEGORIA_RAIZ;
         $parametros['categories'] = [$categoria];
         $resposta = $this->enviarRequisicaoMoodle('core_course_create_categories', $parametros);
-        if(isset($resposta->exception)){
+        if(isset($resposta->exception) || $resposta == null){
             LogController::ErroAPIMoodle($resposta);
             return false;
         }else{
@@ -124,7 +122,6 @@ class MoodleController extends Controller
                     LogController::SucessoCriarCategoria((object) $aux);
                 }
             }
-
         }
     }
 
@@ -330,14 +327,13 @@ class MoodleController extends Controller
             $resposta = false;
         }// Caso tenha sido realizado uma filtragem, realiza manualmente pois a api só filtra por ID 
         else if($id_usuario != null){
-            $vinculo_encontrado = false;
-            foreach ($resposta as $vinculo) {
-                if($vinculo->id == $id_usuario){
-                    $resposta = $vinculo;
-                    break;
-                }
-            }
-            if(!$vinculo_encontrado){
+            $contem_usuario = array_filter($resposta, function($vinculo) use($id_usuario) {
+                return $vinculo->id == $id_usuario;
+            });
+
+            if($contem_usuario){
+                $resposta = $contem_usuario;
+            }else{
                 $resposta = false;
             }
         }
@@ -373,8 +369,11 @@ class MoodleController extends Controller
         // Caso o resultado não tenha sido o desejado retorna false
         if($resposta == NULL || isset($resposta->exception) || count($resposta) == 0){
             $resposta = false;
-        }else if ($id_usuario) {
-            $contem_usuario = array_filter($resposta[0]->userids, function($user_id) use($id_usuario) {
+        } else {
+            $resposta = $resposta[0];
+        }
+        if ($id_usuario) {
+            $contem_usuario = array_filter($resposta->userids, function($user_id) use($id_usuario) {
                 return $user_id == $id_usuario;
             });
             if($contem_usuario){
@@ -382,8 +381,6 @@ class MoodleController extends Controller
             }else{
                 $resposta = false;
             }
-        }else{
-            $resposta = $resposta[0];
         }
         return $resposta;
     }
