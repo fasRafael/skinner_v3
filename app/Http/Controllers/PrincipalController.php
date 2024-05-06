@@ -28,7 +28,7 @@ class PrincipalController extends Controller
         #endregion
         
         #region Cadastro de Curso/Turma/Modulo
-        if(count($lista_ctm_sei) > 0){
+        if(count($lista_ctm_sei)){
             #region Cadastra categorias
             $lista_categorias = $this->preparaListaCategoriasMoodle($lista_ctm_sei, $moodleController);
             $moodleController->criarCategorias($lista_categorias);
@@ -105,146 +105,150 @@ class PrincipalController extends Controller
             return $vin_aluno_sei->vinculo_situacao_nome == "Ativa";
         });
 
-        // Filtra da lista de alunos os que foram vinculados a turmas equivalentes ao ano e semestre
-        $lista_ctm_sei = $seiController->listarCursos_v2($this::HORAS_VINCULO);
-        $lista_ctm_sei = array_filter($lista_ctm_sei, function($ctm){
-            return str_contains($ctm->turma->turma_nome, $this::ANO . '/' . $this::SEMESTRE);
-        });
-        $lista_vin_alunos_aux = []; 
-        foreach ($lista_vin_alunos_sei as $vin_aluno_sei) {
-            foreach ($lista_ctm_sei as $ctm_sei) {
-                if($vin_aluno_sei->turma_codigo == $ctm_sei->turma->turma_codigo){
-                    array_push($lista_vin_alunos_aux, $vin_aluno_sei);
-                    break;
-                }
-            }
-            unset($ctm_sei);
-        }
-        $lista_vin_alunos_sei = $lista_vin_alunos_aux;
-        unset($lista_vin_alunos_aux);
-        unset($vin_aluno_sei);
-
-        // Consulta lista de pessoas no sei para relacionamento posterior entre Vinculo Aluno e Usuário do SEI
-        $lista_pessoas_sei = $seiController->listarPessoas_v2($this::HORAS_PERIODO_COMPLETO);
-
-        // Cria os usuários que ainda não tem cadastro no moodle
-        $lista_usuarios_novos = $this->preparaListaUsuariosMoodle($lista_vin_alunos_sei, $lista_pessoas_sei, $moodleController);
-        $moodleController->criarUsuarios($lista_usuarios_novos);
-        unset($lista_usuarios_novos);
-
-        $lista_vin_usuario_curso_moodle = [];
-        $lista_vin_usuario_grupo_moodle = [];
-        $lista_vin_usuario_coorte_moodle = [];
-        // Cadastra os novos vinculos no moodle
-        foreach ($lista_vin_alunos_sei as $vin_aluno_sei) {
-            // Consulta a Categoria/Curso/Turma correspondente ao vinculo do aluno no SEI 
-            $ctm_sei = array_values(array_filter($lista_ctm_sei, function($ctm_sei) use($vin_aluno_sei) {
-                return $ctm_sei->curso->curso_codigo == $vin_aluno_sei->curso_codigo && $ctm_sei->turma->turma_codigo == $vin_aluno_sei->turma_codigo && $ctm_sei->modulo->modulo_codigo == $vin_aluno_sei->modulo_codigo;
-            }))[0];
-
-            // Consulta o usuário correspondente ao vinculo do aluno no SEI
-            $pessoa_sei = array_filter($lista_pessoas_sei, function($pessoa_sei) use($vin_aluno_sei) {
-                return $pessoa_sei->cpf == $vin_aluno_sei->cpf;
+        if(count($lista_vin_alunos_sei)){
+            // Filtra da lista de alunos os que foram vinculados a turmas equivalentes ao ano e semestre
+            $lista_ctm_sei = $seiController->listarCursos_v2($this::HORAS_VINCULO);
+            $lista_ctm_sei = array_filter($lista_ctm_sei, function($ctm){
+                return str_contains($ctm->turma->turma_nome, $this::ANO . '/' . $this::SEMESTRE);
             });
-            $pessoa_sei = array_values($pessoa_sei)[0];
-
-            // Consulta o usuário no moodle correspondente ao usuário no SEI
-            $usuario_moodle = $moodleController->consultaUsuarios('idnumber', $pessoa_sei->codigo, 1);
-            if(!$usuario_moodle){
-                // Caso tenha ocorrido algum erro no cadastro do usuário, como Email inválido, o sistema não pode prosseguir com o cadastro do aluno
-                LogController::ErroCriarVinculoMoodleUsuarioNaoExiste($pessoa_sei);
-                break 1;
+            $lista_vin_alunos_aux = []; 
+            foreach ($lista_vin_alunos_sei as $vin_aluno_sei) {
+                foreach ($lista_ctm_sei as $ctm_sei) {
+                    if($vin_aluno_sei->turma_codigo == $ctm_sei->turma->turma_codigo){
+                        array_push($lista_vin_alunos_aux, $vin_aluno_sei);
+                        break;
+                    }
+                }
+                unset($ctm_sei);
             }
-
-            // Verifica se a Categoria a que esse aluno será vinculado já existe no Moodle
-            $categoria_moodle = $moodleController->consultaCategorias('idnumber', $vin_aluno_sei->curso_codigo, 1);
-            if(!$categoria_moodle){
-                // Cria-se a categoria dentro da categoria raiz
-                $lista_categorias = $this->preparaListaCategoriasMoodle([$ctm_sei], $moodleController);
-                $moodleController->criarCategorias($lista_categorias);
-                $categoria_moodle = $moodleController->consultaCategorias('idnumber', $vin_aluno_sei->curso_codigo, 1);
-                unset($lista_categorias);
-            }
-
-            // Verifica se o Curso a que esse aluno será vinculado já existe no Moodle
-            $curso_moodle = $moodleController->consultaCursos('idnumber', $vin_aluno_sei->modulo_codigo, 1);
-            if(!$curso_moodle){
-                // Cria-se o curso dentro da categoria raiz
-                $lista_cursos = $this->preparaListaCursosMoodle([$ctm_sei], $moodleController);
-                $moodleController->criarCursos($lista_cursos);
-                $curso_moodle = $moodleController->consultaCursos('idnumber', $vin_aluno_sei->modulo_codigo, 1);
-                unset($lista_cursos);
-            }
-
-            #region Monta lista de vinculos do usuário ao curso
-            if(!$moodleController->consultaVinculosUsuariosCurso($curso_moodle->id, $usuario_moodle->id)){
-                $vin_usuario_curso_moodle = [];
-                $vin_usuario_curso_moodle['roleid'] = '5';
-                $vin_usuario_curso_moodle['userid'] = $usuario_moodle->id;
-                $vin_usuario_curso_moodle['courseid'] = $curso_moodle->id;
-                $vin_usuario_curso_moodle['timestart'] = $ctm_sei->modulo->modulo_inicio;
-                $vin_usuario_curso_moodle['timeend'] = $ctm_sei->modulo->modulo_fim;    
-                array_push($lista_vin_usuario_curso_moodle, $vin_usuario_curso_moodle);
-                unset($vin_usuario_curso_moodle);
-            }
-            #endregion
-
-            // Verifica se o Coorte a que esse usuário será vinculado já existe no Moodle
-            $coorte_moodle = $moodleController->consultaCoortes('idnumber', 'turma - ' . $vin_aluno_sei->turma_codigo, 1);
-            if(!$coorte_moodle){
-                /* Se o coorte não existe no moodle é possível que ele tenha sido manipulado ou excluído. Cria-se um novo. */
-                $lista_coortes = $this->preparaListaCoortesMoodle([$ctm_sei], $moodleController);
-                $moodleController->criarCoortes($lista_coortes);
-                $coorte_moodle = $moodleController->consultaCoortes('idnumber', 'turma - ' . $vin_aluno_sei->turma_codigo, 1);
-                unset($lista_coortes);
-            }
-            // Monta lista de vinculos do usuário ao coorte
-            if(!$moodleController->consultaVinculosUsuariosCoorte($coorte_moodle->id, $usuario_moodle->id)){
-                $vin_usuario_coorte_moodle = [];
-                $vin_usuario_coorte_moodle['cohorttype'] = (object)['type' => 'id', 'value' => $coorte_moodle->id];
-                $vin_usuario_coorte_moodle['usertype'] = (object)['type' => 'id', 'value' => $usuario_moodle->id];
-                array_push($lista_vin_usuario_coorte_moodle, $vin_usuario_coorte_moodle);
-                unset($vin_usuario_coorte_moodle);
-            }
-
-            // Verifica se o Grupo a que esse aluno será vinculado já existe no Moodle
-            $grupo_moodle = $moodleController->consultaGruposPorIdCurso($curso_moodle->id, 'idnumber', $vin_aluno_sei->turma_codigo . ' - ' . $vin_aluno_sei->modulo_codigo, 1);
-            if(!$grupo_moodle){
-                /* Se o grupo não existe no moodle é possível que ele tenha sido manipulado ou excluído. Cria-se um novo. */
-                $lista_grupos = $this->preparaListaGruposMoodle([$ctm_sei], $moodleController);
-                $moodleController->criarGrupos($lista_grupos);
-                $grupo_moodle = $moodleController->consultaGruposPorIdCurso($curso_moodle->id, 'idnumber', $vin_aluno_sei->turma_codigo . ' - ' . $vin_aluno_sei->modulo_codigo, 1);
-                unset($lista_grupos);
-            }
-            #region Monta lista de vinculos do usuário ao grupo
-            if(!$moodleController->consultaVinculosUsuariosGrupo($grupo_moodle->id, $usuario_moodle->id)){
-                $vin_usuario_grupo_moodle = [];
-                $vin_usuario_grupo_moodle['groupid'] = $grupo_moodle->id;
-                $vin_usuario_grupo_moodle['userid'] = $usuario_moodle->id;
-                array_push($lista_vin_usuario_grupo_moodle, $vin_usuario_grupo_moodle);
-                unset($vin_usuario_grupo_moodle);
-            }
-            #endregion
-
-            unset($grupo_moodle);
-            unset($curso_moodle);
-            unset($usuario_moodle);
-            unset($ctm_sei);
+            $lista_vin_alunos_sei = $lista_vin_alunos_aux;
+            unset($lista_vin_alunos_aux);
+            unset($vin_aluno_sei);
         }
-        unset($vin_aluno_sei);
 
-        $moodleController->criarVinculosUsuarioCurso($lista_vin_usuario_curso_moodle);
-        unset($lista_vin_usuario_curso_moodle);
+        if(count($lista_vin_alunos_sei)){
+            // Consulta lista de pessoas no sei para relacionamento posterior entre Vinculo Aluno e Usuário do SEI
+            $lista_pessoas_sei = $seiController->listarPessoas_v2($this::HORAS_PERIODO_COMPLETO);
 
-        $moodleController->criarVinculosUsuarioGrupo($lista_vin_usuario_grupo_moodle);
-        unset($lista_vin_usuario_grupo_moodle);
+            // Cria os usuários que ainda não tem cadastro no moodle
+            $lista_usuarios_novos = $this->preparaListaUsuariosMoodle($lista_vin_alunos_sei, $lista_pessoas_sei, $moodleController);
+            $moodleController->criarUsuarios($lista_usuarios_novos);
+            unset($lista_usuarios_novos);
 
-        // Remove duplicatas
-        // TALVEZ TENHA UMA FORMA DE FAZER ESSA FILTRAGEM DURANTE A EXECUÇÃO
-        $lista_vin_usuario_coorte_moodle = array_unique($lista_vin_usuario_coorte_moodle, SORT_REGULAR);
-        $moodleController->criarVinculosUsuarioCoorte($lista_vin_usuario_coorte_moodle);
-        unset($lista_vin_usuario_coorte_moodle);
-        #endregion
+            $lista_vin_usuario_curso_moodle = [];
+            $lista_vin_usuario_grupo_moodle = [];
+            $lista_vin_usuario_coorte_moodle = [];
+            // Cadastra os novos vinculos no moodle
+            foreach ($lista_vin_alunos_sei as $vin_aluno_sei) {
+                // Consulta a Categoria/Curso/Turma correspondente ao vinculo do aluno no SEI 
+                $ctm_sei = array_values(array_filter($lista_ctm_sei, function($ctm_sei) use($vin_aluno_sei) {
+                    return $ctm_sei->curso->curso_codigo == $vin_aluno_sei->curso_codigo && $ctm_sei->turma->turma_codigo == $vin_aluno_sei->turma_codigo && $ctm_sei->modulo->modulo_codigo == $vin_aluno_sei->modulo_codigo;
+                }))[0];
+
+                // Consulta o usuário correspondente ao vinculo do aluno no SEI
+                $pessoa_sei = array_filter($lista_pessoas_sei, function($pessoa_sei) use($vin_aluno_sei) {
+                    return $pessoa_sei->cpf == $vin_aluno_sei->cpf;
+                });
+                $pessoa_sei = array_values($pessoa_sei)[0];
+
+                // Consulta o usuário no moodle correspondente ao usuário no SEI
+                $usuario_moodle = $moodleController->consultaUsuarios('idnumber', $pessoa_sei->codigo, 1);
+                if(!$usuario_moodle){
+                    // Caso tenha ocorrido algum erro no cadastro do usuário, como Email inválido, o sistema não pode prosseguir com o cadastro do aluno
+                    LogController::ErroCriarVinculoMoodleUsuarioNaoExiste($pessoa_sei);
+                    break 1;
+                }
+
+                // Verifica se a Categoria a que esse aluno será vinculado já existe no Moodle
+                $categoria_moodle = $moodleController->consultaCategorias('idnumber', $vin_aluno_sei->curso_codigo, 1);
+                if(!$categoria_moodle){
+                    // Cria-se a categoria dentro da categoria raiz
+                    $lista_categorias = $this->preparaListaCategoriasMoodle([$ctm_sei], $moodleController);
+                    $moodleController->criarCategorias($lista_categorias);
+                    $categoria_moodle = $moodleController->consultaCategorias('idnumber', $vin_aluno_sei->curso_codigo, 1);
+                    unset($lista_categorias);
+                }
+
+                // Verifica se o Curso a que esse aluno será vinculado já existe no Moodle
+                $curso_moodle = $moodleController->consultaCursos('idnumber', $vin_aluno_sei->modulo_codigo, 1);
+                if(!$curso_moodle){
+                    // Cria-se o curso dentro da categoria raiz
+                    $lista_cursos = $this->preparaListaCursosMoodle([$ctm_sei], $moodleController);
+                    $moodleController->criarCursos($lista_cursos);
+                    $curso_moodle = $moodleController->consultaCursos('idnumber', $vin_aluno_sei->modulo_codigo, 1);
+                    unset($lista_cursos);
+                }
+
+                #region Monta lista de vinculos do usuário ao curso
+                if(!$moodleController->consultaVinculosUsuariosCurso($curso_moodle->id, $usuario_moodle->id)){
+                    $vin_usuario_curso_moodle = [];
+                    $vin_usuario_curso_moodle['roleid'] = '5';
+                    $vin_usuario_curso_moodle['userid'] = $usuario_moodle->id;
+                    $vin_usuario_curso_moodle['courseid'] = $curso_moodle->id;
+                    $vin_usuario_curso_moodle['timestart'] = $ctm_sei->modulo->modulo_inicio;
+                    $vin_usuario_curso_moodle['timeend'] = $ctm_sei->modulo->modulo_fim;    
+                    array_push($lista_vin_usuario_curso_moodle, $vin_usuario_curso_moodle);
+                    unset($vin_usuario_curso_moodle);
+                }
+                #endregion
+
+                // Verifica se o Coorte a que esse usuário será vinculado já existe no Moodle
+                $coorte_moodle = $moodleController->consultaCoortes('idnumber', 'turma - ' . $vin_aluno_sei->turma_codigo, 1);
+                if(!$coorte_moodle){
+                    /* Se o coorte não existe no moodle é possível que ele tenha sido manipulado ou excluído. Cria-se um novo. */
+                    $lista_coortes = $this->preparaListaCoortesMoodle([$ctm_sei], $moodleController);
+                    $moodleController->criarCoortes($lista_coortes);
+                    $coorte_moodle = $moodleController->consultaCoortes('idnumber', 'turma - ' . $vin_aluno_sei->turma_codigo, 1);
+                    unset($lista_coortes);
+                }
+                // Monta lista de vinculos do usuário ao coorte
+                if(!$moodleController->consultaVinculosUsuariosCoorte($coorte_moodle->id, $usuario_moodle->id)){
+                    $vin_usuario_coorte_moodle = [];
+                    $vin_usuario_coorte_moodle['cohorttype'] = (object)['type' => 'id', 'value' => $coorte_moodle->id];
+                    $vin_usuario_coorte_moodle['usertype'] = (object)['type' => 'id', 'value' => $usuario_moodle->id];
+                    array_push($lista_vin_usuario_coorte_moodle, $vin_usuario_coorte_moodle);
+                    unset($vin_usuario_coorte_moodle);
+                }
+
+                // Verifica se o Grupo a que esse aluno será vinculado já existe no Moodle
+                $grupo_moodle = $moodleController->consultaGruposPorIdCurso($curso_moodle->id, 'idnumber', $vin_aluno_sei->turma_codigo . ' - ' . $vin_aluno_sei->modulo_codigo, 1);
+                if(!$grupo_moodle){
+                    /* Se o grupo não existe no moodle é possível que ele tenha sido manipulado ou excluído. Cria-se um novo. */
+                    $lista_grupos = $this->preparaListaGruposMoodle([$ctm_sei], $moodleController);
+                    $moodleController->criarGrupos($lista_grupos);
+                    $grupo_moodle = $moodleController->consultaGruposPorIdCurso($curso_moodle->id, 'idnumber', $vin_aluno_sei->turma_codigo . ' - ' . $vin_aluno_sei->modulo_codigo, 1);
+                    unset($lista_grupos);
+                }
+                #region Monta lista de vinculos do usuário ao grupo
+                if(!$moodleController->consultaVinculosUsuariosGrupo($grupo_moodle->id, $usuario_moodle->id)){
+                    $vin_usuario_grupo_moodle = [];
+                    $vin_usuario_grupo_moodle['groupid'] = $grupo_moodle->id;
+                    $vin_usuario_grupo_moodle['userid'] = $usuario_moodle->id;
+                    array_push($lista_vin_usuario_grupo_moodle, $vin_usuario_grupo_moodle);
+                    unset($vin_usuario_grupo_moodle);
+                }
+                #endregion
+
+                unset($grupo_moodle);
+                unset($curso_moodle);
+                unset($usuario_moodle);
+                unset($ctm_sei);
+            }
+            unset($vin_aluno_sei);
+
+            $moodleController->criarVinculosUsuarioCurso($lista_vin_usuario_curso_moodle);
+            unset($lista_vin_usuario_curso_moodle);
+
+            $moodleController->criarVinculosUsuarioGrupo($lista_vin_usuario_grupo_moodle);
+            unset($lista_vin_usuario_grupo_moodle);
+
+            // Remove duplicatas
+            // TALVEZ TENHA UMA FORMA DE FAZER ESSA FILTRAGEM DURANTE A EXECUÇÃO
+            $lista_vin_usuario_coorte_moodle = array_unique($lista_vin_usuario_coorte_moodle, SORT_REGULAR);
+            $moodleController->criarVinculosUsuarioCoorte($lista_vin_usuario_coorte_moodle);
+            unset($lista_vin_usuario_coorte_moodle);
+            #endregion
+        }
     }
 
     /**
@@ -383,6 +387,7 @@ class PrincipalController extends Controller
             if(!$moodleController->consultaCoortes('idnumber', 'turma - ' . $turma_sei->turma_codigo)){
                 // Ao cadastrar um coorte verifica se a Categoria a quem pertence existe
                 if(!$moodleController->consultaCategorias('idnumber', $turma_sei->curso_codigo)){
+                    // FAZER ESSA OPERAÇÃO COM UMA FUNÇÃO INDEPENDENTE
                     $seiController = new SEIController();
                     $lista_ctm_curso_sei = $seiController->listarCursos_v2($this::HORAS_VINCULO, 0, $turma_sei->curso_codigo);
                     $lista_ctm_curso_sei = array_filter($lista_ctm_curso_sei, function($ctm){

@@ -49,19 +49,18 @@ class MoodleController extends Controller
         $parametros['criteria'][0]['value'] = self::ID_NUMBER_CATEGORIA_RAIZ;
         $resposta = $this->enviarRequisicaoMoodle('core_course_get_categories', $parametros);
 
-        // Caso a categoria não exista chama a função que cria a categoria raiz
-        if($resposta == NULL || count($resposta) == 0){
+        // Caso a Api do Moodle tenha retornado um erro
+        if(isset($resposta->exception)){
+            LogController::ErroAPIMoodle($resposta, __FUNCTION__);
+            return false;
+        }// Caso a categoria não exista chama a função que cria a categoria raiz
+        else if($resposta == NULL || count($resposta) == 0){
             $resposta = $this->criarCategoriaRaiz();
             if($resposta){
                 return $this->consultaCategoriaRaiz();
             }
-        }// Caso o resultado não tenha sido o desejado retorna false
-        else if(isset($resposta->exception)){
-            LogController::ErroAPIMoodle($resposta);
-            return false;
-        }else{
-            return $resposta[0];
         }
+        return $resposta[0];
     }
     /**
      * Cadastra a categoria raiz que o sistema utilizará para cadastrar novas categorias e novos cursos
@@ -73,7 +72,7 @@ class MoodleController extends Controller
         $parametros['categories'] = [$categoria];
         $resposta = $this->enviarRequisicaoMoodle('core_course_create_categories', $parametros);
         if(isset($resposta->exception) || $resposta == null){
-            LogController::ErroAPIMoodle($resposta);
+            LogController::ErroAPIMoodle($resposta, __FUNCTION__, (object) $categoria);
             return false;
         }else{
             LogController::SucessoCriarCategoria((object) $categoria);
@@ -97,12 +96,16 @@ class MoodleController extends Controller
         }
         $resposta = $this->enviarRequisicaoMoodle('core_course_get_categories', $parametros);
 
-        // Caso o resultado não tenha sido o desejado retorna false
-        if($resposta == NULL || isset($resposta->exception) || count($resposta) == 0){
-            $resposta = false;
+        // Caso a Api do Moodle tenha retornado um erro
+        if(isset($resposta->exception)){
+            LogController::ErroAPIMoodle($resposta, __FUNCTION__);
+            return false;
+        }// Caso o resultado não tenha sido o desejado retorna false
+        else if($resposta == NULL || count($resposta) == 0){
+            return false;
         }// Caso tenha sido realizado uma filtragem, realiza manualmente pois a api só filtra por ID 
         else if($unico && count($resposta)){
-            $resposta = $resposta[0];
+            return $resposta[0];
         }
         return $resposta;
     }
@@ -113,13 +116,13 @@ class MoodleController extends Controller
      */
     function criarCategorias(array $lista_categorias) {
         if(count($lista_categorias)){
-            foreach ($lista_categorias as $aux) {
-                $parametros['categories'] = [$aux];
+            foreach ($lista_categorias as $categoria) {
+                $parametros['categories'] = [$categoria];
                 $resposta = $this->enviarRequisicaoMoodle('core_course_create_categories', $parametros);
                 if(isset($resposta->exception)){
-                    LogController::ErroAPIMoodle($resposta);
+                    LogController::ErroAPIMoodle($resposta, __FUNCTION__, (object) $categoria);
                 }else{
-                    LogController::SucessoCriarCategoria((object) $aux);
+                    LogController::SucessoCriarCategoria((object) $categoria);
                 }
             }
         }
@@ -135,9 +138,13 @@ class MoodleController extends Controller
     function consultaCoortes(string $chave = null, string $valor = null, bool $unico = false) {
         $resposta = $this->enviarRequisicaoMoodle('core_cohort_get_cohorts');
 
-        // Caso o resultado não tenha sido o desejado retorna false
-        if($resposta == NULL || isset($resposta->exception) || count($resposta) == 0){
-            $resposta = false;
+        // Caso a Api do Moodle tenha retornado um erro
+        if(isset($resposta->exception)){
+            LogController::ErroAPIMoodle($resposta, __FUNCTION__);
+            return false;
+        }// Caso o resultado não tenha sido o desejado retorna false
+        else if($resposta == NULL || count($resposta) == 0){
+            return false;
         }// Caso tenha sido realizado uma filtragem, realiza manualmente pois a api só filtra por ID 
         else if($chave != null && $valor != null){
             $resposta_filtrada = [];
@@ -147,9 +154,9 @@ class MoodleController extends Controller
                 }
             }
             if($unico && count($resposta_filtrada)){
-                $resposta = $resposta_filtrada[0];
+                return $resposta_filtrada[0];
             }else{
-                $resposta = $resposta_filtrada;
+                return $resposta_filtrada;
             }
         }
         return $resposta;
@@ -161,13 +168,13 @@ class MoodleController extends Controller
      */
     function criarCoortes(array $lista_coortes) {
         if(count($lista_coortes)){
-            foreach ($lista_coortes as $aux) {
-                $parametros['cohorts'] = [$aux];
+            foreach ($lista_coortes as $coorte) {
+                $parametros['cohorts'] = [$coorte];
                 $resposta = $this->enviarRequisicaoMoodle('core_cohort_create_cohorts', $parametros);
                 if(isset($resposta->exception)){
-                    LogController::ErroAPIMoodle($resposta);
+                    LogController::ErroAPIMoodle($resposta, __FUNCTION__, (object) $coorte);
                 }else{
-                    LogController::SucessoCriarCoorte((object) $aux);
+                    LogController::SucessoCriarCoorte((object) $coorte);
                 }
             }
         }
@@ -190,15 +197,17 @@ class MoodleController extends Controller
         }
         $resposta = $this->enviarRequisicaoMoodle('core_course_get_courses_by_field', $parametros);
 
-        // Caso o resultado não tenha sido o desejado retorna false
-        if($resposta == NULL || isset($resposta->exception) || count($resposta->courses) == 0){
-            $resposta = false;
+        // Caso a Api do Moodle tenha retornado um erro
+        if(isset($resposta->exception)){
+            LogController::ErroAPIMoodle($resposta, __FUNCTION__);
+            return false;
+        }// Caso o resultado não tenha sido o desejado retorna false
+        else if($resposta == NULL || count($resposta->courses) == 0){
+            return false;
         }else if($unico){
-            $resposta = $resposta->courses[0];
-        }else{
-            $resposta = $resposta->courses;
+            return $resposta->courses[0];
         }
-        return $resposta;
+        return $resposta->courses;
     }
 
     /**
@@ -207,13 +216,13 @@ class MoodleController extends Controller
      */
     function criarCursos(array $lista_cursos) {
         if(count($lista_cursos)){
-            foreach ($lista_cursos as $aux) {
-                $parametros['courses'] = [$aux];
+            foreach ($lista_cursos as $curso) {
+                $parametros['courses'] = [$curso];
                 $resposta = $this->enviarRequisicaoMoodle('core_course_create_courses', $parametros);
                 if(isset($resposta->exception)){
-                    LogController::ErroAPIMoodle($resposta);
+                    LogController::ErroAPIMoodle($resposta, __FUNCTION__, (object) $curso);
                 }else{
-                    LogController::SucessoCriarCurso((object) $aux);
+                    LogController::SucessoCriarCurso((object) $curso);
                 }
             }
         }
@@ -230,9 +239,13 @@ class MoodleController extends Controller
     function consultaGruposPorIdCurso(int $id_curso, string $chave = null, string $valor = null, bool $unico = false) {
         $parametros['courseid'] = $id_curso;
         $resposta = $this->enviarRequisicaoMoodle('core_group_get_course_groups', $parametros);
-        // Caso o resultado não tenha sido o desejado retorna false
-        if($resposta == NULL || isset($resposta->exception) || count($resposta) == 0){
-            $resposta = false;
+        // Caso a Api do Moodle tenha retornado um erro
+        if(isset($resposta->exception)){
+            LogController::ErroAPIMoodle($resposta, __FUNCTION__);
+            return false;
+        }// Caso o resultado não tenha sido o desejado retorna false
+        else if($resposta == NULL || count($resposta) == 0){
+            return false;
         }// Caso tenha sido realizado uma filtragem, realiza manualmente pois a api só filtra por ID 
         else if($chave != null && $valor != null){
             $resposta_filtrada = [];
@@ -242,9 +255,9 @@ class MoodleController extends Controller
                 }
             }
             if($unico && count($resposta_filtrada)){
-                $resposta = $resposta_filtrada[0];
+                return $resposta_filtrada[0];
             }else{
-                $resposta = $resposta_filtrada;
+                return $resposta_filtrada;
             }
         }
         return $resposta;
@@ -256,13 +269,13 @@ class MoodleController extends Controller
      */
     function criarGrupos(array $lista_grupos) {
         if(count($lista_grupos)){
-            foreach ($lista_grupos as $aux) {
-                $parametros['groups'] = [$aux];
+            foreach ($lista_grupos as $grupo) {
+                $parametros['groups'] = [$grupo];
                 $resposta = $this->enviarRequisicaoMoodle('core_group_create_groups', $parametros);
                 if(isset($resposta->exception)){
-                    LogController::ErroAPIMoodle($resposta);
+                    LogController::ErroAPIMoodle($resposta, __FUNCTION__, (object) $grupo);
                 }else{
-                    LogController::SucessoCriarGrupo((object) $aux);
+                    LogController::SucessoCriarGrupo((object) $grupo);
                 }
             }
         }
@@ -284,15 +297,17 @@ class MoodleController extends Controller
         }
         $resposta = $this->enviarRequisicaoMoodle('core_user_get_users', $parametros);
 
-        // Caso o resultado não tenha sido o desejado retorna false
-        if($resposta == NULL || isset($resposta->exception) || count($resposta->users) == 0){
-            $resposta = false;
+        // Caso a Api do Moodle tenha retornado um erro
+        if(isset($resposta->exception)){
+            LogController::ErroAPIMoodle($resposta, __FUNCTION__);
+            return false;
+        }// Caso o resultado não tenha sido o desejado retorna false
+        else if($resposta == NULL || count($resposta->users) == 0){
+            return false;
         }else if($unico){
-            $resposta = $resposta->users[0];
-        }else{
-            $resposta = $resposta->users;
+            return $resposta->users[0];
         }
-        return $resposta;
+        return $resposta->users;
     }
 
     /**
@@ -301,13 +316,13 @@ class MoodleController extends Controller
      */
     function criarUsuarios(array $lista_usuarios) {
         if(count($lista_usuarios)){
-            foreach ($lista_usuarios as $aux) {
-                $parametros['users'] = [$aux];
+            foreach ($lista_usuarios as $usuario) {
+                $parametros['users'] = [$usuario];
                 $resposta = $this->enviarRequisicaoMoodle('core_user_create_users', $parametros);
                 if(isset($resposta->exception)){
-                    LogController::ErroAPIMoodle($resposta);
+                    LogController::ErroAPIMoodle($resposta, __FUNCTION__, (object) $usuario);
                 }else{
-                    LogController::SucessoCriarUsuario((object) $aux);
+                    LogController::SucessoCriarUsuario((object) $usuario);
                 }
             }
         }
@@ -322,9 +337,13 @@ class MoodleController extends Controller
     function consultaVinculosUsuariosCurso(int $id_curso, int $id_usuario = null) {
         $parametros['courseid'] = $id_curso;
         $resposta = $this->enviarRequisicaoMoodle('core_enrol_get_enrolled_users', $parametros);
-        // Caso o resultado não tenha sido o desejado retorna false
-        if($resposta == NULL || isset($resposta->exception) || count($resposta) == 0){
-            $resposta = false;
+        // Caso a Api do Moodle tenha retornado um erro
+        if(isset($resposta->exception)){
+            LogController::ErroAPIMoodle($resposta, __FUNCTION__);
+            return false;
+        }// Caso o resultado não tenha sido o desejado retorna false
+        else if($resposta == NULL || count($resposta) == 0){
+            return false;
         }// Caso tenha sido realizado uma filtragem, realiza manualmente pois a api só filtra por ID 
         else if($id_usuario != null){
             $contem_usuario = array_filter($resposta, function($vinculo) use($id_usuario) {
@@ -332,9 +351,9 @@ class MoodleController extends Controller
             });
 
             if($contem_usuario){
-                $resposta = $contem_usuario;
+                return $contem_usuario;
             }else{
-                $resposta = false;
+                return false;
             }
         }
         return $resposta;
@@ -345,13 +364,13 @@ class MoodleController extends Controller
      */
     function criarVinculosUsuarioCurso(array $lista_vinculos) {
         if(count($lista_vinculos)){
-            foreach ($lista_vinculos as $aux) {
-                $parametros['enrolments'] = [$aux];
+            foreach ($lista_vinculos as $vin_usuario_curso) {
+                $parametros['enrolments'] = [$vin_usuario_curso];
                 $resposta = $this->enviarRequisicaoMoodle('enrol_manual_enrol_users', $parametros);
                 if(isset($resposta->exception)){
-                    LogController::ErroAPIMoodle($resposta);
+                    LogController::ErroAPIMoodle($resposta, __FUNCTION__, (object) $vin_usuario_curso);
                 }else{
-                    LogController::SucessoCriarVinculoUsuarioCurso((object) $aux);
+                    LogController::SucessoCriarVinculoUsuarioCurso((object) $vin_usuario_curso);
                 }
             }
         }
@@ -366,12 +385,15 @@ class MoodleController extends Controller
     function consultaVinculosUsuariosGrupo(int $id_grupo, int $id_usuario = null) {
         $parametros['groupids'] = [$id_grupo];
         $resposta = $this->enviarRequisicaoMoodle('core_group_get_group_members', $parametros);
-        // Caso o resultado não tenha sido o desejado retorna false
-        if($resposta == NULL || isset($resposta->exception) || count($resposta) == 0){
-            $resposta = false;
-        } else {
-            $resposta = $resposta[0];
+        // Caso a Api do Moodle tenha retornado um erro
+        if(isset($resposta->exception)){
+            LogController::ErroAPIMoodle($resposta, __FUNCTION__);
+            return false;
+        }// Caso o resultado não tenha sido o desejado retorna false
+        else if($resposta == NULL || count($resposta) == 0){
+            return false;
         }
+        $resposta = $resposta[0];
         if ($id_usuario) {
             $contem_usuario = array_filter($resposta->userids, function($user_id) use($id_usuario) {
                 return $user_id == $id_usuario;
@@ -390,14 +412,14 @@ class MoodleController extends Controller
      */
     function criarVinculosUsuarioGrupo(array $lista_vinculos) {
         if(count($lista_vinculos)){
-            foreach ($lista_vinculos as $aux) {
-                $parametros['members'] = [$aux];
+            foreach ($lista_vinculos as $vin_usuario_grupo) {
+                $parametros['members'] = [$vin_usuario_grupo];
                 $resposta = $this->enviarRequisicaoMoodle('core_group_add_group_members', $parametros);
                 if(isset($resposta->exception)){
                     // EM CASO DE EXCEÇÃO CADASTRAR 1 POR 1 
-                    LogController::ErroAPIMoodle($resposta);
+                    LogController::ErroAPIMoodle($resposta, __FUNCTION__, (object) $vin_usuario_grupo);
                 }else{
-                    LogController::SucessoCriarVinculoUsuarioGrupo((object) $aux);
+                    LogController::SucessoCriarVinculoUsuarioGrupo((object) $vin_usuario_grupo);
                 }
             }
         }
@@ -412,12 +434,15 @@ class MoodleController extends Controller
     function consultaVinculosUsuariosCoorte(int $id_coorte, int $id_usuario = null) {
         $parametros['cohortids'] = [$id_coorte];
         $resposta = $this->enviarRequisicaoMoodle('core_cohort_get_cohort_members', $parametros);
-        // Caso o resultado não tenha sido o desejado retorna false
-        if($resposta == NULL || isset($resposta->exception) || count($resposta) == 0){
-            $resposta = false;
-        } else {
-            $resposta = $resposta[0];
+        // Caso a Api do Moodle tenha retornado um erro
+        if(isset($resposta->exception)){
+            LogController::ErroAPIMoodle($resposta, __FUNCTION__);
+            return false;
+        }// Caso o resultado não tenha sido o desejado retorna false
+        else if($resposta == NULL || count($resposta) == 0){
+            return false;
         }
+        $resposta = $resposta[0];
 
         if ($id_usuario) {
             $contem_usuario = array_filter($resposta->userids, function($user_id) use($id_usuario) {
@@ -437,14 +462,14 @@ class MoodleController extends Controller
      */
     function criarVinculosUsuarioCoorte(array $lista_vinculos) {
         if(count($lista_vinculos)){
-            foreach ($lista_vinculos as $aux) {
-                $parametros['members'] = [$aux];
+            foreach ($lista_vinculos as $vin_usuario_coorte) {
+                $parametros['members'] = [$vin_usuario_coorte];
                 // TRATAR WARNINGS
                 $resposta = $this->enviarRequisicaoMoodle('core_cohort_add_cohort_members', $parametros);
                 if(isset($resposta->exception)){
-                    LogController::ErroAPIMoodle($resposta);
+                    LogController::ErroAPIMoodle($resposta, __FUNCTION__, (object) $vin_usuario_coorte);
                 }else{
-                    LogController::SucessoCriarVinculoUsuarioCoorte((object) $aux);
+                    LogController::SucessoCriarVinculoUsuarioCoorte((object) $vin_usuario_coorte);
                 }
             }
         }

@@ -96,11 +96,18 @@ class LogController extends Controller
         self::RegistrarLog(json_encode($log, JSON_UNESCAPED_UNICODE));
     }
 
-    // ??? CAPTURAR A LINHA E A FUNÇÃO EM CASO DE FALHAS
-    static function ErroAPIMoodle(object $excecao) {
+    static function ErroAPIMoodle(object $excecao, string $funcao, object $registro = null) {
         $log                = self::CriarObjLog(401);
+        $log->funcao        = $funcao;
+        if($registro != null){
+            switch ($funcao) {
+                case 'criarUsuarios':
+                    $log->cpf_usuario   = $registro->username;
+                    $log->email_usuario = $registro->email;
+                    break;
+            }
+        }
         $log->excecao       = $excecao->exception;
-        $log->codigo_erro   = $excecao->errorcode;
         $log->mensagem      = $excecao->message;
         self::RegistrarLog(json_encode($log, JSON_UNESCAPED_UNICODE));
     }
