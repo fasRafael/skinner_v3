@@ -204,8 +204,8 @@ class PrincipalController extends Controller
                 // Monta lista de vinculos do usuário ao coorte
                 if(!$moodleController->consultaVinculosUsuariosCoorte($coorte_moodle->id, $usuario_moodle->id)){
                     $vin_usuario_coorte_moodle = [];
-                    $vin_usuario_coorte_moodle['cohorttype'] = (object)['type' => 'id', 'value' => $coorte_moodle->id];
-                    $vin_usuario_coorte_moodle['usertype'] = (object)['type' => 'id', 'value' => $usuario_moodle->id];
+                    $vin_usuario_coorte_moodle['cohorttype'] = (object)['type' => 'idnumber', 'value' => $coorte_moodle->idnumber];
+                    $vin_usuario_coorte_moodle['usertype'] = (object)['type' => 'username', 'value' => $usuario_moodle->username];
                     array_push($lista_vin_usuario_coorte_moodle, $vin_usuario_coorte_moodle);
                     unset($vin_usuario_coorte_moodle);
                 }

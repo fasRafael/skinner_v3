@@ -71,7 +71,7 @@ class MoodleController extends Controller
         $categoria['idnumber'] = self::ID_NUMBER_CATEGORIA_RAIZ;
         $parametros['categories'] = [$categoria];
         $resposta = $this->enviarRequisicaoMoodle('core_course_create_categories', $parametros);
-        if(isset($resposta->exception) || $resposta == null){
+        if(isset($resposta->exception)){
             LogController::ErroAPIMoodle($resposta, __FUNCTION__, (object) $categoria);
             return false;
         }else{
@@ -262,6 +262,24 @@ class MoodleController extends Controller
         }
         return $resposta;
     }
+    /**
+     * Realiza a consulta dos grupos cadastrados no moodle id do grupo
+     * @param array $ids_grupo Array com os ids dos grupos a serem filtrados
+     * @return array 
+     */
+    function consultaGruposPorIds(array $ids_grupo){
+        $parametros['groupids'] = $ids_grupo;
+        $resposta = $this->enviarRequisicaoMoodle('core_group_get_groups', $parametros);
+        // Caso a Api do Moodle tenha retornado um erro
+        if(isset($resposta->exception)){
+            LogController::ErroAPIMoodle($resposta, __FUNCTION__);
+            return false;
+        }// Caso o resultado não tenha sido o desejado retorna false
+        else if($resposta == NULL || count($resposta) == 0){
+            return false;
+        }
+        return $resposta;
+    }
 
     /**
      * Cadastra os grupos no moodle
@@ -367,6 +385,11 @@ class MoodleController extends Controller
             foreach ($lista_vinculos as $vin_usuario_curso) {
                 $parametros['enrolments'] = [$vin_usuario_curso];
                 $resposta = $this->enviarRequisicaoMoodle('enrol_manual_enrol_users', $parametros);
+                // Carrega os id_numbers dos registros vinculados para armazenar o log
+                $usuario = $this->consultaUsuarios('id', $vin_usuario_curso['userid']);
+                $curso = $this->consultaCursos('id', $vin_usuario_curso['courseid']);
+                $vin_usuario_curso['username'] = $usuario[0]->username;
+                $vin_usuario_curso['idnumber_curso'] = $curso[0]->idnumber;
                 if(isset($resposta->exception)){
                     LogController::ErroAPIMoodle($resposta, __FUNCTION__, (object) $vin_usuario_curso);
                 }else{
@@ -415,8 +438,12 @@ class MoodleController extends Controller
             foreach ($lista_vinculos as $vin_usuario_grupo) {
                 $parametros['members'] = [$vin_usuario_grupo];
                 $resposta = $this->enviarRequisicaoMoodle('core_group_add_group_members', $parametros);
+                // Carrega os id_numbers dos registros vinculados para armazenar o log
+                $usuario = $this->consultaUsuarios('id', $vin_usuario_grupo['userid']);
+                $grupo = $this->consultaGruposPorIds([$vin_usuario_grupo['groupid']]);
+                $vin_usuario_grupo['username'] = $usuario[0]->username;
+                $vin_usuario_grupo['idnumber_grupo'] = $grupo[0]->idnumber;
                 if(isset($resposta->exception)){
-                    // EM CASO DE EXCEÇÃO CADASTRAR 1 POR 1 
                     LogController::ErroAPIMoodle($resposta, __FUNCTION__, (object) $vin_usuario_grupo);
                 }else{
                     LogController::SucessoCriarVinculoUsuarioGrupo((object) $vin_usuario_grupo);
@@ -464,10 +491,12 @@ class MoodleController extends Controller
         if(count($lista_vinculos)){
             foreach ($lista_vinculos as $vin_usuario_coorte) {
                 $parametros['members'] = [$vin_usuario_coorte];
-                // TRATAR WARNINGS
                 $resposta = $this->enviarRequisicaoMoodle('core_cohort_add_cohort_members', $parametros);
+                // Retorno pode ser warning ou exception
                 if(isset($resposta->exception)){
                     LogController::ErroAPIMoodle($resposta, __FUNCTION__, (object) $vin_usuario_coorte);
+                }else if(isset($resposta->warnings) && count($resposta->warnings)){
+                    LogController::ErroAPIMoodle($resposta->warnings[0], __FUNCTION__, (object) $vin_usuario_coorte);
                 }else{
                     LogController::SucessoCriarVinculoUsuarioCoorte((object) $vin_usuario_coorte);
                 }

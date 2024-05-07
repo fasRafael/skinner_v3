@@ -11,7 +11,7 @@ class LogController extends Controller
             if(!is_dir("../storage/app/logs")){
                 mkdir("../storage/app/logs", 0700);
             }
-            $arquivo = fopen("../storage/app/logs/registros_separados_" . date("Y-m-d") . ".txt", "a");
+            $arquivo = fopen("../storage/app/logs/registros_" . date("Y-m-d") . ".txt", "a");
             fwrite($arquivo, $linha );
             fwrite($arquivo, "\n");
             fclose($arquivo);
@@ -40,14 +40,14 @@ class LogController extends Controller
     static function SucessoCriarCategoria(object $categoria){
         $log            = self::CriarObjLog(201);
         $log->idnumber  = $categoria->idnumber;
-        $log->name      = $categoria->name;
+        $log->nome      = $categoria->name;
         self::RegistrarLog(json_encode($log, JSON_UNESCAPED_UNICODE));
     }
 
     static function SucessoCriarCurso(object $curso){
         $log            = self::CriarObjLog(202);
         $log->idnumber  = $curso->idnumber;
-        $log->shortname = $curso->shortname;
+        $log->nome_breve = $curso->shortname;
         self::RegistrarLog(json_encode($log, JSON_UNESCAPED_UNICODE));
     }
 
@@ -68,47 +68,81 @@ class LogController extends Controller
     static function SucessoCriarUsuario(object $usuario){
         $log            = self::CriarObjLog(205);
         $log->idnumber  = $usuario->idnumber;
-        $log->username  = $usuario->username;
+        $log->cpf_usuario  = $usuario->username;
         self::RegistrarLog(json_encode($log, JSON_UNESCAPED_UNICODE));
     }
 
     static function SucessoCriarVinculoUsuarioCurso(object $vin_usuario_curso){
-        $log            = self::CriarObjLog(206);
-        // CARREGAR IDNUMER
-        $log->userid    = $vin_usuario_curso->userid;
-        $log->courseid  = $vin_usuario_curso->courseid;
+        $log                    = self::CriarObjLog(206);
+        $log->cpf_usuario       = $vin_usuario_curso->username;
+        $log->idnumber_curso    = $vin_usuario_curso->idnumber_curso;
         self::RegistrarLog(json_encode($log, JSON_UNESCAPED_UNICODE));
     }
 
     static function SucessoCriarVinculoUsuarioGrupo(object $vin_usuario_grupo){
-        $log            = self::CriarObjLog(207);
-        // CARREGAR IDNUMER
-        $log->userid    = $vin_usuario_grupo->userid;
-        $log->groupid   = $vin_usuario_grupo->groupid;
+        $log                    = self::CriarObjLog(207);
+        $log->cpf_usuario       = $vin_usuario_grupo->username;
+        $log->idnumber_grupo    = $vin_usuario_grupo->idnumber_grupo;
         self::RegistrarLog(json_encode($log, JSON_UNESCAPED_UNICODE));
     }
 
     static function SucessoCriarVinculoUsuarioCoorte(object $vin_usuario_coorte){
-        $log            = self::CriarObjLog(208);
-        // CARREGAR IDNUMER
-        $log->userid    = $vin_usuario_coorte->usertype->value;
-        $log->chortid   = $vin_usuario_coorte->cohorttype->value;
+        $log                    = self::CriarObjLog(208);
+        $log->cpf_usuario       = $vin_usuario_coorte->usertype->value;
+        $log->idnumber_coorte   = $vin_usuario_coorte->cohorttype->value;
         self::RegistrarLog(json_encode($log, JSON_UNESCAPED_UNICODE));
     }
 
     static function ErroAPIMoodle(object $excecao, string $funcao, object $registro = null) {
-        $log                = self::CriarObjLog(401);
-        $log->funcao        = $funcao;
+        $log            = self::CriarObjLog(401);
+        $log->funcao    = $funcao;
         if($registro != null){
+            // EM CASO DE FUNÇÕES DE CONSULTAR?
             switch ($funcao) {
+                case 'criarCategoriaRaiz':
+                    $log->idnumber  = $registro->idnumber;
+                    $log->nome      = $registro->name;
+                    break;
+                case 'criarCategorias':
+                    $log->idnumber  = $registro->idnumber;
+                    $log->nome      = $registro->name;
+                    break;
+                case 'criarCursos':
+                    $log->idnumber      = $registro->idnumber;
+                    $log->nome_breve    = $registro->shortname;
+                    break;
                 case 'criarUsuarios':
+                    $log->idnumber      = $registro->idnumber;
                     $log->cpf_usuario   = $registro->username;
-                    $log->email_usuario = $registro->email;
+                    break;
+                case 'criarGrupos':
+                    $log->idnumber  = $registro->idnumber;
+                    $log->nome      = $registro->name;
+                    break;
+                case 'criarCoortes':
+                    $log->idnumber  = $registro->idnumber;
+                    $log->nome      = $registro->name;
+                    break;
+                case 'criarVinculosUsuarioCurso':
+                    $log->cpf_usuario       = $registro->username;
+                    $log->idnumber_curso    = $registro->idnumber_curso;
+                    break;
+                case 'criarVinculosUsuarioGrupo':
+                    $log->cpf_usuario       = $registro->username;
+                    $log->idnumber_grupo    = $registro->idnumber_grupo;
+                    break;
+                case 'criarVinculosUsuarioCoorte':
+                    $log->cpf_usuario       = $registro->usertype->value;
+                    $log->idnumber_coorte   = $registro->cohorttype->value;
                     break;
             }
         }
-        $log->excecao       = $excecao->exception;
-        $log->mensagem      = $excecao->message;
+        if(isset($excecao->exception)){
+            $log->excecao = $excecao->exception;
+        }
+        if(isset($excecao->message)){
+            $log->mensagem = $excecao->message;
+        }
         self::RegistrarLog(json_encode($log, JSON_UNESCAPED_UNICODE));
     }
 
