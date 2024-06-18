@@ -331,8 +331,10 @@ class MoodleController extends Controller
     /**
      * Cadastra os usuários no moodle
      * @param array $lista_usuarios
+     * @return array
      */
-    function criarUsuarios(array $lista_usuarios) {
+    function criarUsuarios(array $lista_usuarios) : array {
+        $lista_usuarios_Cadastrados = [];
         if(count($lista_usuarios)){
             foreach ($lista_usuarios as $usuario) {
                 $parametros['users'] = [$usuario];
@@ -341,9 +343,12 @@ class MoodleController extends Controller
                     LogController::ErroAPIMoodle($resposta, __FUNCTION__, (object) $usuario);
                 }else{
                     LogController::SucessoCriarUsuario((object) $usuario);
+                    $usuario['id_usuario_moodle'] = $resposta[0]->id;
+                    array_push($lista_usuarios_Cadastrados, (object) $usuario);
                 }
             }
         }
+        return $lista_usuarios_Cadastrados;
     }
 
     /**

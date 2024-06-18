@@ -13,9 +13,9 @@ class Mensagem {
         203 => "Grupo criado no moodle.",
         204 => "Coorte criado no moodle.",
         205 => "Usuário criado no moodle.",
-        206 => "Vínculo de usuário e curso criado no moodle.",
-        207 => "Vínculo de usuário e grupo criado no moodle.",
-        208 => "Vínculo de usuário e coorte criado no moodle.",
+        206 => "Vínculo entre usuário e curso criado no moodle.",
+        207 => "Vínculo entre usuário e grupo criado no moodle.",
+        208 => "Vínculo entre usuário e coorte criado no moodle.",
         // Faixa 400: mensagem de falhas
         401 => "Exceção reportada pela API do Moodle.",
         402 => "Não foi possível criar um usuário devido a e-mail inválido.",
