@@ -331,10 +331,8 @@ class MoodleController extends Controller
     /**
      * Cadastra os usuários no moodle
      * @param array $lista_usuarios
-     * @return array
      */
-    function criarUsuarios(array $lista_usuarios) : array {
-        $lista_usuarios_Cadastrados = [];
+    function criarUsuarios(array $lista_usuarios) {
         if(count($lista_usuarios)){
             foreach ($lista_usuarios as $usuario) {
                 $parametros['users'] = [$usuario];
@@ -343,12 +341,40 @@ class MoodleController extends Controller
                     LogController::ErroAPIMoodle($resposta, __FUNCTION__, (object) $usuario);
                 }else{
                     LogController::SucessoCriarUsuario((object) $usuario);
-                    $usuario['id_usuario_moodle'] = $resposta[0]->id;
-                    array_push($lista_usuarios_Cadastrados, (object) $usuario);
                 }
             }
         }
-        return $lista_usuarios_Cadastrados;
+    }
+
+    /**
+     * Realiza a consulta dos cursos vinculados a um usuario no moodle
+     * @param int $id_usuario Id do usuário a ser consultado
+     * @param int $id_curso Id do curso a ser consultado
+     * @return bool|object|array 
+     */
+    function consultaVinculosCursosUsuario(int $id_usuario, int $id_curso = null) {
+        $parametros['userid'] = $id_usuario;
+        $resposta = $this->enviarRequisicaoMoodle('core_enrol_get_users_courses', $parametros);
+        // Caso a Api do Moodle tenha retornado um erro
+        if(isset($resposta->exception)){
+            LogController::ErroAPIMoodle($resposta, __FUNCTION__);
+            return false;
+        }// Caso o resultado não tenha sido o desejado retorna false
+        else if($resposta == NULL || count($resposta) == 0){
+            return false;
+        }// Caso tenha sido realizado uma filtragem, realiza manualmente pois a api só filtra por ID 
+        else if($id_curso != null){
+            $contem_curso = array_filter($resposta, function($vinculo) use($id_curso) {
+                return $vinculo->id == $id_curso;
+            });
+
+            if($contem_curso){
+                return $contem_curso;
+            }else{
+                return false;
+            }
+        }
+        return $resposta;
     }
 
     /**
