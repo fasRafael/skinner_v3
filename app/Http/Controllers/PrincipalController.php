@@ -20,6 +20,12 @@ class PrincipalController extends Controller
         $seiController = new SEIController();
         $moodleController = new MoodleController();
 
+        #region Atualiza usuários
+        $lista_usuarios_sei = $seiController->listarPessoas_v2($this::HORAS_CADASTRO);
+        $lista_usuarios_atualizados = $this->preparaListaUsuariosAtualizadosMoodle($lista_usuarios_sei, $moodleController);
+        $moodleController->atualizarUsuarios($lista_usuarios_atualizados);
+        #endregion
+
         #region Cadastro de Curso|Turma|Modulo
         //Consulta a lista de Cursos, Turmas e Modulos do SEI onde as Turmas correspondem ao ANO/SEMESTRE
         /** @var array $lista_ctm_sei Equivalente a lista de objetos Curso|Turma|Modulo do SEI */
@@ -53,7 +59,6 @@ class PrincipalController extends Controller
         unset($lista_ctm_sei);
         #endregion
 
-        // ??? UMA VEZ CRIADO O VÍNCULO ELE NÃO É ALTERADO! CASO A DATA INICIO E FIM DO CURSO SEJA MANIPULADA ELE NÃO VAI SER ATUALIZADO
         #region Cadastro de Aluno, Professor e Coordenador e cria seus vínculos 
         $lista_vin_alunos_sei = $seiController->listarVinculoAlunos_v2($this::HORAS_CADASTRO);
         $lista_vin_professores_sei = $seiController->listarVinculoProfessores_v2($this::HORAS_CADASTRO);
@@ -103,17 +108,15 @@ class PrincipalController extends Controller
                 }
 
                 #region Monta lista de vinculos do usuário ao curso
-                //??? Independente se o vinculo já existe ou não o cadastro deve ser realizado novamente caso contrário não vai atualizar dados de timestart e timeend. Precisam ser atualizado?
-                //if(!$moodleController->consultaVinculosUsuariosCurso($curso_moodle->id, $vinculo->id_usuario_moodle)){
+                // Independente se o vinculo já existe ou não o cadastro deve ser realizado novamente caso contrário não vai atualizar dados de timestart e timeend.
                 $vin_usuario_curso_moodle = [];
                 $vin_usuario_curso_moodle['roleid'] = ($vinculo->tipo_vinculo == 'Aluno')?'5':'3';
                 $vin_usuario_curso_moodle['userid'] = $vinculo->id_usuario_moodle;
                 $vin_usuario_curso_moodle['courseid'] = $curso_moodle->id;
                 $vin_usuario_curso_moodle['timestart'] = substr($vinculo->ctm_sei->modulo->modulo_inicio, 0, -3);
-                $vin_usuario_curso_moodle['timeend'] = substr($vinculo->ctm_sei->modulo->modulo_fim, 0, -3);    
+                $vin_usuario_curso_moodle['timeend'] = substr($vinculo->ctm_sei->modulo->modulo_fim, 0, -3);
                 array_push($lista_vin_usuario_curso_moodle, $vin_usuario_curso_moodle);
                 unset($vin_usuario_curso_moodle);
-                //}
                 #endregion
 
                 // Verifica se o Coorte a que esse usuário será vinculado já existe no Moodle
@@ -159,9 +162,11 @@ class PrincipalController extends Controller
             }
             unset($vinculo);
 
+            $lista_vin_usuario_curso_moodle = array_unique($lista_vin_usuario_curso_moodle, SORT_REGULAR);
             $moodleController->criarVinculosUsuarioCurso($lista_vin_usuario_curso_moodle);
             unset($lista_vin_usuario_curso_moodle);
 
+            $lista_vin_usuario_grupo_moodle = array_unique($lista_vin_usuario_grupo_moodle, SORT_REGULAR);
             $moodleController->criarVinculosUsuarioGrupo($lista_vin_usuario_grupo_moodle);
             unset($lista_vin_usuario_grupo_moodle);
 
@@ -169,39 +174,6 @@ class PrincipalController extends Controller
             $moodleController->criarVinculosUsuarioCoorte($lista_vin_usuario_coorte_moodle);
             unset($lista_vin_usuario_coorte_moodle);
             #endregion
-        }
-        #endregion
-        
-        #region Atualiza usuários
-        $lista_usuarios_sei = $seiController->listarPessoas_v2($this::HORAS_CADASTRO);
-        foreach ($lista_usuarios_sei as $usuario_sei) {
-            $resposta = $moodleController->consultaUsuarios('username', $usuario_sei->cpf);
-            // REVISAR LÓGICA
-            if($resposta){
-                $usuario_moodle = $resposta[0]; 
-                if(!$usuario_moodle->suspended){
-                    foreach ($usuario_moodle->customfields as $customfield) {
-                        $usuario_moodle->{$customfield->shortname} = $customfield->value;
-                    }
-                    if(!isset($usuario_moodle->cpf)){
-                        $usuario_moodle->cpf = $usuario_sei->cpf;
-                    }
-                    if(!isset($usuario_moodle->token)){
-                        $usuario_moodle->token = $usuario_sei->token;
-                    }
-                    if($usuario_sei->cpf != $usuario_moodle->username ||
-                       $usuario_sei->cpf != $usuario_moodle->cpf ||
-                       $usuario_sei->nome != $usuario_moodle->fullname ||
-                       $usuario_sei->email != $usuario_moodle->email ||
-                       $usuario_sei->token != $usuario_moodle->token){
-                        $usuario_moodle->username = $usuario_sei->cpf;
-                        $usuario_moodle->cpf = $usuario_sei->cpf;
-                        $usuario_moodle->fullname = $usuario_sei->fullname;
-                        $usuario_moodle->email = $usuario_sei->email;
-                        $usuario_moodle->token = $usuario_sei->token;
-                    }
-                }
-            }
         }
         #endregion
         LogController::FimExecucao();
@@ -409,6 +381,83 @@ class PrincipalController extends Controller
             }
         }
         return $lista_usuarios_novos;
+    }
+
+    /**
+     * Filtra da lista de pessoas do SEI os usuários que ainda não estão suspensos no moodle e verifica se algum campo está diferente com seu valor no moodle e prepara uma lista de usuários e campos atualizados no formato que o moodle precisa.
+     * Campos Atualizados:
+     * - customfields.CPF
+     * - customfields.token
+     * - username
+     * - firstname
+     * - lastname
+     * - email
+     * @param array $lista_pessoas_sei
+     * @param MoodleController $moodleController
+     * @return array $lista_usuarios_atualizados
+     */
+    function preparaListaUsuariosAtualizadosMoodle(array $lista_pessoas_sei, MoodleController $moodleController) : array {
+        $lista_usuarios_atualizados = [];
+        foreach ($lista_pessoas_sei as $usuario_sei) {
+            $usuario_moodle = $moodleController->consultaUsuarios('idnumber', $usuario_sei->codigo, 1);
+            if($usuario_moodle && !$usuario_moodle->suspended){
+                $atualizado = false;
+                $usuario = [];
+                $usuario['id'] = $usuario_moodle->id;
+                if(isset($usuario_moodle->customfields)){
+                    $cpf_existe = false;
+                    $cpf_alterado = false;
+                    $token_existe = false;
+                    $token_alterado = false;
+                    foreach ($usuario_moodle->customfields as $customfield) {
+                        if($customfield->shortname == "CPF"){
+                            $cpf_existe = true;
+                            if($customfield->value != $this->formataCPF($usuario_sei->cpf)){
+                                $cpf_alterado = true;
+                            }
+                        }else if($customfield->shortname == "token"){
+                            $token_existe = true;
+                            if($customfield->value != $usuario_sei->token){
+                                $token_alterado = true;
+                            }
+                        }
+                    }
+                    if(!$cpf_existe || $cpf_alterado){
+                        $atualizado = true;
+                        $usuario['customfields'] = [];
+                        array_push($usuario['customfields'], ["type" => "CPF", "value" => $this->formataCPF($usuario_sei->cpf)]);
+                    }
+                    if(!$token_existe || $token_alterado){
+                        $atualizado = true;
+                        $usuario['customfields'] = [];
+                        array_push($usuario['customfields'], ["type" => "token", "value" => $usuario_sei->token]);
+                    }
+                }else{
+                    $atualizado = true;
+                    $usuario['customfields'] = [];
+                    array_push($usuario['customfields'], ["type" => "CPF", "value" => $this->formataCPF($usuario_sei->cpf)]);
+                    array_push($usuario['customfields'], ["type" => "token", "value" => $usuario_sei->token]);
+                }
+                if ($usuario_sei->cpf != $usuario_moodle->username) {
+                    $atualizado = true;
+                    $usuario['username'] = $usuario_sei->cpf;
+                }
+                if ($usuario_sei->nome != $usuario_moodle->fullname) {
+                    $atualizado = true;
+                    $usuario['firstname'] = explode(" ", trim($usuario_sei->nome), 2)[0];
+                    $usuario['lastname'] = explode(" ", trim($usuario_sei->nome), 2)[1];
+                }
+                if ($usuario_sei->email != $usuario_moodle->email) {
+                    $atualizado = true;
+                    $usuario['email'] = $usuario_sei->email;
+                }
+                
+                if($atualizado){
+                    array_push($lista_usuarios_atualizados, $usuario);
+                }
+            }
+        }
+        return $lista_usuarios_atualizados;
     }
 
     function preparaListaVinculosUsuarioCursoMoodle(){

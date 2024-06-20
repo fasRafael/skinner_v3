@@ -347,6 +347,27 @@ class MoodleController extends Controller
     }
 
     /**
+     * Atualiza os dados dos usuários no moodle
+     * @param array $lista_usuarios
+     */
+    function atualizarUsuarios(array $lista_usuarios) {
+        if(count($lista_usuarios)){
+            foreach ($lista_usuarios as $usuario) {
+                $parametros['users'] = [$usuario];
+                $resposta = $this->enviarRequisicaoMoodle('core_user_update_users', $parametros);
+                // Retorno pode ser warning ou exception
+                if(isset($resposta->exception)){
+                    LogController::ErroAPIMoodle($resposta, __FUNCTION__, (object) $usuario);
+                }else if(isset($resposta->warnings) && count($resposta->warnings)){
+                    LogController::ErroAPIMoodle($resposta->warnings[0], __FUNCTION__, (object) $usuario);
+                }else{
+                    LogController::SucessoAtualizarUsuario((object) $usuario);
+                }
+            }
+        }
+    }
+
+    /**
      * Realiza a consulta dos cursos vinculados a um usuario no moodle
      * @param int $id_usuario Id do usuário a ser consultado
      * @param int $id_curso Id do curso a ser consultado
@@ -421,7 +442,10 @@ class MoodleController extends Controller
                 $curso = $this->consultaCursos('id', $vin_usuario_curso['courseid']);
                 $vin_usuario_curso['username'] = $usuario[0]->username;
                 $vin_usuario_curso['idnumber_curso'] = $curso[0]->idnumber;
-                if(isset($resposta->exception)){
+                // Caso exista o retorno de excessão "Mensagem não foi enviada." Significa que a mensagem notificando o usuário da inscrição no curso não foi disparada. Normalmente ocorre nos casos de atualização dos dados de vínculo com o curso.
+                if(isset($resposta->errorcode) && $resposta->errorcode == "Message was not sent."){
+                    LogController::SucessoCriarVinculoUsuarioCurso((object) $vin_usuario_curso);
+                }else if(isset($resposta->exception)){
                     LogController::ErroAPIMoodle($resposta, __FUNCTION__, (object) $vin_usuario_curso);
                 }else{
                     LogController::SucessoCriarVinculoUsuarioCurso((object) $vin_usuario_curso);

@@ -72,6 +72,28 @@ class LogController extends Controller
         self::RegistrarLog(json_encode($log, JSON_UNESCAPED_UNICODE));
     }
 
+    static function SucessoAtualizarUsuario(object $usuario) {
+        $log            = self::CriarObjLog(209);
+        $log->id_usuario  = $usuario->id;
+        $log->campos_atualizados = [];
+        if(isset($usuario->customfields)){
+            array_push($log->campos_atualizados, ['customfields'=> $usuario->customfields]);
+        }
+        if(isset($usuario->username)){
+            array_push($log->campos_atualizados, ['username'=> $usuario->username]);
+        }
+        if(isset($usuario->firstname)){
+            array_push($log->campos_atualizados, ['firstname'=> $usuario->firstname]);
+        }
+        if(isset($usuario->lastname)){
+            array_push($log->campos_atualizados, ['lastname'=> $usuario->lastname]);
+        }
+        if(isset($usuario->email)){
+            array_push($log->campos_atualizados, ['email'=> $usuario->email]);
+        }
+        self::RegistrarLog(json_encode($log, JSON_UNESCAPED_UNICODE));
+    }
+
     static function SucessoCriarVinculoUsuarioCurso(object $vin_usuario_curso){
         $log                    = self::CriarObjLog(206);
         $log->cpf_usuario       = $vin_usuario_curso->username;
@@ -114,6 +136,25 @@ class LogController extends Controller
                 case 'criarUsuarios':
                     $log->idnumber      = $registro->idnumber;
                     $log->cpf_usuario   = $registro->username;
+                    break;
+                case 'atualizarUsuarios':
+                    $log->id_usuario  = $registro->id;
+                    $log->campos_atualizados = [];
+                    if(isset($registro->customfields)){
+                        array_push($log->campos_atualizados, ['customfields'=> $registro->customfields]);
+                    }
+                    if(isset($registro->username)){
+                        array_push($log->campos_atualizados, ['username'=> $registro->username]);
+                    }
+                    if(isset($registro->firstname)){
+                        array_push($log->campos_atualizados, ['firstname'=> $registro->firstname]);
+                    }
+                    if(isset($registro->lastname)){
+                        array_push($log->campos_atualizados, ['lastname'=> $registro->lastname]);
+                    }
+                    if(isset($registro->email)){
+                        array_push($log->campos_atualizados, ['email'=> $registro->email]);
+                    }
                     break;
                 case 'criarGrupos':
                     $log->idnumber  = $registro->idnumber;
