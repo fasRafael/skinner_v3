@@ -4,8 +4,9 @@ namespace App\Http\Controllers;
 
 class PrincipalController extends Controller
 {
+    //??? ALTERAR O PERÍODO PARA 6 HORAS E MUDAR A EXECUÇÃO PARA CADA 30 MINUTOS
     /** Período igual a 1 dia. Utilizado para cadastros de curso, tuma, módulo e aluno. */
-    const HORAS_CADASTRO = 240;
+    const HORAS_CADASTRO = 24;
     /** Período igual a 1 ano. Utilizado para vincular cursos, turmas ou módulos a alunos. */
     const HORAS_VINCULO = 8760;
     /** Período igual a 10 anos. Utilizado para vincular usuários a alunos. */
@@ -114,7 +115,7 @@ class PrincipalController extends Controller
                 $vin_usuario_curso_moodle['userid'] = $vinculo->id_usuario_moodle;
                 $vin_usuario_curso_moodle['courseid'] = $curso_moodle->id;
                 $vin_usuario_curso_moodle['timestart'] = substr($vinculo->ctm_sei->modulo->modulo_inicio, 0, -3);
-                $vin_usuario_curso_moodle['timeend'] = substr($vinculo->ctm_sei->modulo->modulo_fim, 0, -3);
+                $vin_usuario_curso_moodle['timeend'] = ($vinculo->tipo_vinculo == 'Aluno')?substr($vinculo->ctm_sei->modulo->modulo_fim, 0, -3):'0';
                 array_push($lista_vin_usuario_curso_moodle, $vin_usuario_curso_moodle);
                 unset($vin_usuario_curso_moodle);
                 #endregion
